@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.viewsets import ViewSet
 from rest_framework.decorators import action
+from rest_framework import serializers
 from levelupapi.models import Event, Gamer
 
 
@@ -43,3 +44,39 @@ class EventView(ViewSet):
                 return Response(None, status=status.HTTP_204_NO_CONTENT)
             except Exception as ex:
                 return Response({'message': ex.args[0]})
+
+    def list(self, request):
+        """Handle GET requests to events resource
+
+        Returns:
+            Response -- JSON serialized list of events
+        """
+        # Get the current authenticated user
+        gamer = Gamer.objects.get(user=request.auth.user)
+        events = Event.objects.all()
+
+        # Set the `joined` property on every event
+        for event in events:
+            # Check to see if the gamer is in the attendees list on the event
+            event.joined = gamer in event.attendees.all()
+
+        # Support filtering events by game
+        game = self.request.query_params.get('gameId', None)
+        if game is not None:
+            events = events.filter(game__id=type)
+
+        serializer = EventSerializer(
+            events, many=True, context={'request': request})
+        return Response(serializer.data)
+        
+
+class EventSerializer(serializers.ModelSerializer):
+    """JSON serializer for events"""
+    # if you have other variables outside the Meta class just add this line
+    joined = serializers.BooleanField(required=False)
+
+    class Meta:
+        model = Event
+        fields = ('id', 'game', 'host',
+                  'description', 'date',
+                  'time', 'attendees', 'joined')
